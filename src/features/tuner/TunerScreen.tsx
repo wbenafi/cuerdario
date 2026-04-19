@@ -4,20 +4,18 @@ import { useRouter } from 'expo-router';
 
 import { BottomNav } from '../../components/BottomNav';
 import { TopBar } from '../../components/TopBar';
-import { useTuner } from '../../hooks/useTuner';
+import { TUNER_SIGNAL_MIN, useTuner } from '../../hooks/useTuner';
 import { Icon } from '../../icons';
 import { appRoutes } from '../../navigation/routes';
 import { STANDARD_TUNING, type TuningString } from '../../music';
 import { alpha, theme } from '../../theme';
 import { TunerDial } from './TunerDial';
 
-const MIC_SIGNAL_MIN = 0.25;
-
 export function TunerScreen() {
   const router = useRouter();
   const tuner = useTuner();
   const showPlayNotesRibbonHint =
-    tuner.permissionStatus === 'granted' && tuner.amplitude < MIC_SIGNAL_MIN;
+    tuner.permissionStatus === 'granted' && tuner.amplitude < TUNER_SIGNAL_MIN;
 
   const ribbonOpacity = useRef(new Animated.Value(showPlayNotesRibbonHint ? 1 : 0)).current;
   const ribbonTranslateY = useRef(new Animated.Value(showPlayNotesRibbonHint ? 0 : 18)).current;
@@ -44,7 +42,7 @@ export function TunerScreen() {
   const clampedAngle = Math.max(-1, Math.min(1, detectedCents / 50)) * 84;
   const noteFullName = tuner.detectedPitch?.fullName ?? tuner.target.fullName;
   const displayFrequency = tuner.detectedPitch?.frequency ?? tuner.target.frequency;
-  const isSignalTooLow = tuner.permissionStatus === 'granted' && tuner.amplitude < MIC_SIGNAL_MIN;
+  const isSignalTooLow = tuner.permissionStatus === 'granted' && tuner.amplitude < TUNER_SIGNAL_MIN;
   const matchesExpectedTune =
     !isSignalTooLow && Boolean(tuner.detectedPitch) && tuner.tuningState === 'in-tune';
 
