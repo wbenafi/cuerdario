@@ -31,10 +31,13 @@ type DetectedPitch = {
   matchedStringId: TuningString['id'];
 };
 
+export const TUNER_SIGNAL_MIN = 0.18;
+
 const recordingOptions = {
-  clarityThreshold: 0.85,
+  clarityThreshold: 0.82,
   maxFrequency: 360,
   minFrequency: 60,
+  onsetStabilizationMs: 220,
 } as const;
 
 const meteringRecordingOptions = {
@@ -81,6 +84,7 @@ export function useTuner() {
     let microphoneSubscription: { remove: () => void } | null = null;
     let levelSubscription: { remove: () => void } | null = null;
     const detector = PitchDetector.forFloat32Array(2048);
+    const signalTracker = createSignalStabilityTracker();
 
     async function startNativePitch() {
       try {
@@ -98,9 +102,12 @@ export function useTuner() {
               return;
             }
 
+            const signalLevel = normalizeRms(getRms(frames));
+            const isStableSignal = signalTracker.isStable(signalLevel);
             const [frequency, clarity] = detector.findPitch(frames, 16000);
 
             if (
+              isStableSignal &&
               Number.isFinite(frequency) &&
               clarity > recordingOptions.clarityThreshold &&
               frequency > recordingOptions.minFrequency &&
@@ -219,6 +226,7 @@ export function useTuner() {
 
         const detector = PitchDetector.forFloat32Array(analyser.fftSize);
         const buffer = new Float32Array(analyser.fftSize);
+        const signalTracker = createSignalStabilityTracker();
 
         const update = () => {
           if (!analyser || !audioContext) {
@@ -227,10 +235,12 @@ export function useTuner() {
 
           analyser.getFloatTimeDomainData(buffer);
           const [frequency, clarity] = detector.findPitch(buffer, audioContext.sampleRate);
-          const rms = Math.sqrt(buffer.reduce((sum, value) => sum + value * value, 0) / buffer.length);
-          setWebAmplitude(Math.min(1, rms * 12));
+          const signalLevel = normalizeRms(getRms(buffer));
+          const isStableSignal = signalTracker.isStable(signalLevel);
+          setWebAmplitude(signalLevel);
 
           if (
+            isStableSignal &&
             Number.isFinite(frequency) &&
             clarity > recordingOptions.clarityThreshold &&
             frequency > recordingOptions.minFrequency &&
@@ -342,6 +352,38 @@ function decodePcm16Chunk(data: Uint8Array) {
   }
 
   return frames;
+}
+
+function createSignalStabilityTracker() {
+  let signalStartedAt: number | null = null;
+
+  return {
+    isStable(signalLevel: number) {
+      const now = Date.now();
+
+      if (signalLevel < TUNER_SIGNAL_MIN) {
+        signalStartedAt = null;
+        return false;
+      }
+
+      signalStartedAt ??= now;
+      return now - signalStartedAt >= recordingOptions.onsetStabilizationMs;
+    },
+  };
+}
+
+function getRms(buffer: Float32Array) {
+  let sum = 0;
+
+  for (let index = 0; index < buffer.length; index += 1) {
+    sum += buffer[index] * buffer[index];
+  }
+
+  return Math.sqrt(sum / buffer.length);
+}
+
+function normalizeRms(rms: number) {
+  return Math.max(0, Math.min(1, rms * 12));
 }
 
 function resolvePermissionState(granted: boolean, canAskAgain: boolean) {

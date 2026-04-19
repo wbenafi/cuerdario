@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Line, Path } from 'react-native-svg';
 
 import { alpha, theme } from '../../theme';
@@ -11,8 +11,9 @@ const IN_TUNE_CENTS = 4;
 /** Same scale as `TunerScreen` needle: ±50 cents → ±84°. */
 const DIAL_MAX_CENTS = 50;
 const DIAL_MAX_NEEDLE_DEG = 84;
-/** Interpolation bounds (wider than ±84° for spring overshoot). */
+/** Interpolation bounds kept wider than ±84° so incoming values clamp gracefully. */
 const NEEDLE_ANGLE_INTERPOLATE = DIAL_MAX_NEEDLE_DEG + 20;
+const NEEDLE_ANIMATION_MS = 320;
 
 export function TunerDial({
   angle,
@@ -35,11 +36,11 @@ export function TunerDial({
 
   const needleRotation = useRef(new Animated.Value(angle)).current;
   useEffect(() => {
-    Animated.spring(needleRotation, {
+    Animated.timing(needleRotation, {
       toValue: angle,
+      duration: NEEDLE_ANIMATION_MS,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-      friction: 9,
-      tension: 48,
     }).start();
   }, [angle, needleRotation]);
 
